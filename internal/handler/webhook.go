@@ -3,11 +3,17 @@ package handler
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/taujago/go-github-telegram-bot/internal/parser"
 	"github.com/taujago/go-github-telegram-bot/internal/telegram"
 )
+
+func isDebugEnabled() bool {
+	return os.Getenv("DEBUG") == "true"
+}
 
 func WebhookHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("X-GitHub-Event") != "push" {
@@ -17,9 +23,16 @@ func WebhookHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body, err := io.ReadAll(r.Body)
+
 	if err != nil {
 		http.Error(w, "Failed to read body", http.StatusInternalServerError)
 		return
+	}
+
+	if isDebugEnabled() {
+		log.Println("====== DEBUG: RAW GitHub Payload ======")
+		log.Println(string(body))
+		log.Println("========================================")
 	}
 
 	message, err := parser.ParsePush(body)
