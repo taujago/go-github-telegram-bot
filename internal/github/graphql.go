@@ -3,6 +3,7 @@ package github
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -10,19 +11,18 @@ import (
 
 func GetTitleAndURLFromNodeID(nodeID string) (string, string, error) {
 	query := `
-		query($id: ID!) {
-			node(id: $id) {
-				... on Issue {
-					title
-					url
-				}
-				... on PullRequest {
-					title
-					url
-				}
+	query($id: ID!) {
+		node(id: $id) {
+			... on Issue {
+				title
+				url
+			}
+			... on PullRequest {
+				title
+				url
 			}
 		}
-	`
+	}`
 
 	vars := map[string]string{"id": nodeID}
 	body, _ := json.Marshal(map[string]interface{}{
@@ -34,14 +34,19 @@ func GetTitleAndURLFromNodeID(nodeID string) (string, string, error) {
 	req.Header.Set("Authorization", "Bearer "+os.Getenv("GITHUB_TOKEN"))
 	req.Header.Set("Content-Type", "application/json")
 
-	res, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", "", err
 	}
-	defer res.Body.Close()
+	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(res.Body)
-	var resp struct {
+	respBody, _ := io.ReadAll(resp.Body)
+
+	// DEBUG
+	fmt.Printf("DEBUG: content_node_id = %s\n", nodeID)
+	fmt.Printf("DEBUG: GraphQL response: %s\n", string(respBody))
+
+	var parsed struct {
 		Data struct {
 			Node struct {
 				Title string `json:"title"`
@@ -49,9 +54,9 @@ func GetTitleAndURLFromNodeID(nodeID string) (string, string, error) {
 			} `json:"node"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal(respBody, &resp); err != nil {
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
 		return "", "", err
 	}
 
-	return resp.Data.Node.Title, resp.Data.Node.URL, nil
+	return parsed.Data.Node.Title, parsed.Data.Node.URL, nil
 }

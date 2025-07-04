@@ -17,7 +17,9 @@ func ParseProjectsV2Item(body []byte) (string, error) {
 	sender := raw["sender"].(map[string]interface{})["login"].(string)
 	contentNodeID := raw["projects_v2_item"].(map[string]interface{})["content_node_id"].(string)
 
+	// title, url, err := github.GetTitleAndURLFromNodeID(contentNodeID)
 	title, url, err := github.GetTitleAndURLFromNodeID(contentNodeID)
+
 	if err != nil {
 		title = "_(unknown title)_"
 		url = ""
