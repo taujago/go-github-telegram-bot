@@ -16,14 +16,9 @@ func isDebugEnabled() bool {
 }
 
 func WebhookHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("X-GitHub-Event") != "push" {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "Ignoring non-push event")
-		return
-	}
+	eventType := r.Header.Get("X-GitHub-Event")
 
 	body, err := io.ReadAll(r.Body)
-
 	if err != nil {
 		http.Error(w, "Failed to read body", http.StatusInternalServerError)
 		return
@@ -35,9 +30,35 @@ func WebhookHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("========================================")
 	}
 
-	message, err := parser.ParsePush(body)
+	var message string
+	switch eventType {
+	case "push":
+		message, err = parser.ParsePush(body)
+	case "pull_request":
+		message, err = parser.ParsePullRequest(body)
+	case "create":
+		message, err = parser.ParseCreate(body)
+	case "delete":
+		message, err = parser.ParseDelete(body)
+	case "workflow_run":
+		message, err = parser.ParseWorkflowRun(body)
+	case "project":
+
+		message, err = parser.ParseProject(body)
+	case "project_card":
+		message, err = parser.ParseProjectCard(body)
+	case "project_column":
+		message, err = parser.ParseProjectColumn(body)
+	case "projects_v2_item":
+		message, err = parser.ParseProjectsV2Item(body)
+
+	default:
+		fmt.Fprint(w, "Ignored event type: "+eventType)
+		return
+	}
+
 	if err != nil {
-		http.Error(w, "Failed to parse payload: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "Error parsing payload: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 

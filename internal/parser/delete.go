@@ -1,0 +1,31 @@
+package parser
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type DeletePayload struct {
+	Ref        string `json:"ref"`
+	RefType    string `json:"ref_type"`
+	Repository struct {
+		FullName string `json:"full_name"`
+	} `json:"repository"`
+	Sender struct {
+		Login string `json:"login"`
+	} `json:"sender"`
+}
+
+func ParseDelete(body []byte) (string, error) {
+	var payload DeletePayload
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", err
+	}
+
+	if payload.RefType != "branch" {
+		return "", nil
+	}
+
+	return fmt.Sprintf("🗑️ **%s** deleted branch `%s` from `%s`",
+		payload.Sender.Login, payload.Ref, payload.Repository.FullName), nil
+}
