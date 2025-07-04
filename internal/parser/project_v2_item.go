@@ -3,23 +3,9 @@ package parser
 import (
 	"encoding/json"
 	"fmt"
-)
 
-type ProjectsV2ItemPayload struct {
-	Action         string `json:"action"`
-	ProjectsV2Item struct {
-		ContentType string  `json:"content_type"`
-		CreatedAt   string  `json:"created_at"`
-		UpdatedAt   string  `json:"updated_at"`
-		ArchivedAt  *string `json:"archived_at"`
-		Creator     struct {
-			Login string `json:"login"`
-		} `json:"creator"`
-	} `json:"projects_v2_item"`
-	Sender struct {
-		Login string `json:"login"`
-	} `json:"sender"`
-}
+	"github.com/taujago/go-github-telegram-bot/internal/github"
+)
 
 func ParseProjectsV2Item(body []byte) (string, error) {
 	var raw map[string]interface{}
@@ -29,32 +15,25 @@ func ParseProjectsV2Item(body []byte) (string, error) {
 
 	action := raw["action"].(string)
 	sender := raw["sender"].(map[string]interface{})["login"].(string)
+	contentNodeID := raw["projects_v2_item"].(map[string]interface{})["content_node_id"].(string)
 
-	// Check if this is a status move
+	title, url, err := github.GetTitleAndURLFromNodeID(contentNodeID)
+	if err != nil {
+		title = "_(unknown title)_"
+		url = ""
+	}
+
 	if action == "edited" {
 		if changes, ok := raw["changes"].(map[string]interface{}); ok {
 			if fieldVal, ok := changes["field_value"].(map[string]interface{}); ok {
 				if fieldVal["field_name"] == "Status" {
 					from := fieldVal["from"].(map[string]interface{})["name"].(string)
 					to := fieldVal["to"].(map[string]interface{})["name"].(string)
-					return fmt.Sprintf("📌 **%s** moved task from **%s** to **%s**", sender, from, to), nil
+					return fmt.Sprintf("\U0001F501 **%s** moved task: [%s](%s)\n\u27a1\ufe0f **%s → %s**", sender, title, url, from, to), nil
 				}
 			}
 		}
 	}
 
-	// Fallback for created or edited without status change
-	payload := struct {
-		ProjectsV2Item struct {
-			ContentType string `json:"content_type"`
-			Creator     struct {
-				Login string `json:"login"`
-			} `json:"creator"`
-		} `json:"projects_v2_item"`
-	}{}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("🗂️ **%s** %s a `%s` in GitHub Projects v2 (created by **%s**)", sender, action, payload.ProjectsV2Item.ContentType, payload.ProjectsV2Item.Creator.Login), nil
+	return fmt.Sprintf("\U0001F501 **%s** %s a task: [%s](%s)", sender, action, title, url), nil
 }
