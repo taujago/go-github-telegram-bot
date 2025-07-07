@@ -49,7 +49,10 @@ func WebhookHandler(w http.ResponseWriter, r *http.Request) {
 		message, err = parser.ParseProjectCard(body)
 	case "project_column":
 		message, err = parser.ParseProjectColumn(body)
-
+	case "issues":
+		message, err = parser.ParseIssue(body)
+	case "issue_comment":
+		message, err = parser.ParseIssueComment(body)
 	default:
 		fmt.Fprint(w, "Ignored event type: "+eventType)
 		return
