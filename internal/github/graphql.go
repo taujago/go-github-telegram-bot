@@ -1,52 +1,61 @@
 package github
 
+// **Add these imports at the top**
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 )
 
-func GetTitleAndURLFromNodeID(nodeID string) (string, string, error) {
-	query := `
-	query($id: ID!) {
-		node(id: $id) {
-			... on Issue {
-				title
-				url
-			}
-			... on PullRequest {
-				title
-				url
-			}
-		}
-	}`
+func DoGraphQL(query string, variables interface{}, target interface{}) error {
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		return fmt.Errorf("GITHUB_TOKEN not set")
+	}
 
-	vars := map[string]string{"id": nodeID}
-	body, _ := json.Marshal(map[string]interface{}{
-		"query":     query,
-		"variables": vars,
-	})
+	payload := struct {
+		Query     string      `json:"query"`
+		Variables interface{} `json:"variables"`
+	}{Query: query, Variables: variables}
 
+	body, _ := json.Marshal(payload)
 	req, _ := http.NewRequest("POST", "https://api.github.com/graphql", bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+os.Getenv("GITHUB_TOKEN"))
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/vnd.github+json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", "", err
+		return err
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("GraphQL query failed: %d", resp.StatusCode)
+	}
 
-	// DEBUG
-	fmt.Printf("DEBUG: content_node_id = %s\n", nodeID)
-	fmt.Printf("DEBUG: GraphQL response: %s\n", string(respBody))
+	return json.NewDecoder(resp.Body).Decode(&target)
+}
 
-	var parsed struct {
+func FetchIssueOrPRTitleByNodeID(nodeID string) (string, string, error) {
+	const q = `
+    query($id: ID!) {
+      node(id: $id) {
+        ... on Issue {
+          title
+          url
+        }
+        ... on PullRequest {
+          title
+          url
+        }
+      }
+    }`
+	variables := map[string]string{"id": nodeID}
+
+	var resp struct {
 		Data struct {
 			Node struct {
 				Title string `json:"title"`
@@ -54,9 +63,9 @@ func GetTitleAndURLFromNodeID(nodeID string) (string, string, error) {
 			} `json:"node"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal(respBody, &parsed); err != nil {
+
+	if err := DoGraphQL(q, variables, &resp); err != nil {
 		return "", "", err
 	}
-
-	return parsed.Data.Node.Title, parsed.Data.Node.URL, nil
+	return resp.Data.Node.Title, resp.Data.Node.URL, nil
 }
