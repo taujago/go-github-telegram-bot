@@ -49,12 +49,6 @@ func WebhookHandler(w http.ResponseWriter, r *http.Request) {
 		message, err = parser.ParseProjectCard(body)
 	case "project_column":
 		message, err = parser.ParseProjectColumn(body)
-	case "projects_v2_item":
-		// message, err = parser.ParseProjectsV2Item(body)
-		err := parser.ParseProjectsV2Item(body)
-		if err != nil {
-			log.Printf("failed to parse project v2 item: %v", err)
-		}
 
 	default:
 		fmt.Fprint(w, "Ignored event type: "+eventType)
