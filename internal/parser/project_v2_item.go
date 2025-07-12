@@ -1,61 +1,71 @@
+// internal/parser/project_v2_item.go
 package parser
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
-
-	"github.com/taujago/go-github-telegram-bot/internal/github"
 )
 
-// ProjectV2ItemPayload models the incoming webhook for a project_v2_item event
-type ProjectV2ItemPayload struct {
-	Action         string `json:"action"`
-	ProjectsV2Item struct {
-		ID            int64   `json:"id"`
-		NodeID        string  `json:"node_id"`
-		ProjectNodeID string  `json:"project_node_id"`
-		ContentNodeID string  `json:"content_node_id"`
-		ContentType   string  `json:"content_type"`
-		CreatedAt     string  `json:"created_at"`
-		UpdatedAt     string  `json:"updated_at"`
-		ArchivedAt    *string `json:"archived_at"`
-	} `json:"projects_v2_item"`
-	Sender struct {
-		Login string `json:"login"`
-	} `json:"sender"`
-	Organization struct {
-		Login string `json:"login"`
-	} `json:"organization"`
+type ProjectV2ItemEditedPayload struct {
+	Action         string         `json:"action"`
+	ProjectsV2Item ProjectsV2Item `json:"projects_v2_item"`
+	Changes        *Changes       `json:"changes,omitempty"`
+	Sender         User           `json:"sender"`
 }
 
-// ParseProjectV2Item parses the project_v2_item event and enriches it with the issue/PR title via GraphQL
-func ParseProjectV2Item(body []byte) (string, error) {
-	var payload ProjectV2ItemPayload
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return "", err
+type ProjectsV2Item struct {
+	ID            int64  `json:"id"`
+	NodeID        string `json:"node_id"`
+	ProjectNodeID string `json:"project_node_id"`
+	ColumnName    string `json:"column_name,omitempty"` // hypothetical enrichment field
+	CardTitle     string `json:"card_title,omitempty"`  // hypothetical enrichment field
+	ProjectNumber string `json:"project_number,omitempty"`
+	CardURL       string `json:"card_url,omitempty"`
+}
+
+type Changes struct {
+	FieldValue *FieldValueChange `json:"field_value,omitempty"`
+}
+
+type FieldValueChange struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+type User struct {
+	Login string `json:"login"`
+}
+
+type ParsedProjectV2ItemInfo struct {
+	CardTitle     string
+	ProjectNumber string
+	ColumnFrom    string
+	ColumnTo      string
+	ColumnName    string
+	CardURL       string
+}
+
+func ParseProjectV2ItemEdited(payload ProjectV2ItemEditedPayload) (*ParsedProjectV2ItemInfo, error) {
+	if payload.Changes == nil || payload.Changes.FieldValue == nil {
+		return nil, errors.New("missing field value change")
 	}
 
-	// Default values
-	title := "_unknown item_"
-	url := ""
+	// Replace the following with actual GraphQL enrichment if needed
+	return &ParsedProjectV2ItemInfo{
+		CardTitle:     "Card Title Placeholder",
+		ProjectNumber: "1",
+		ColumnFrom:    payload.Changes.FieldValue.From,
+		ColumnTo:      payload.Changes.FieldValue.To,
+		CardURL:       fmt.Sprintf("https://github.com/orgs/PMJ-Project/projects/1/views/1?pane=issue&itemId=%d", payload.ProjectsV2Item.ID),
+	}, nil
+}
 
-	if payload.ProjectsV2Item.ContentNodeID != "" {
-		t, u, err := github.FetchIssueOrPRTitleByNodeID(payload.ProjectsV2Item.ContentNodeID)
-		if err != nil {
-			log.Printf("❌ Failed to fetch GitHub title from content_node_id: %v", err)
-		} else {
-			title = t
-			url = u
-		}
-	}
-
-	return fmt.Sprintf(
-		"🧩 **%s** %s a project card in org *%s*\n📌 *%s*\n🔗 %s",
-		payload.Sender.Login,
-		payload.Action,
-		payload.Organization.Login,
-		title,
-		url,
-	), nil
+func ParseProjectV2ItemReordered(payload ProjectV2ItemEditedPayload) (*ParsedProjectV2ItemInfo, error) {
+	// Replace with real GraphQL-based enrichment if needed
+	return &ParsedProjectV2ItemInfo{
+		CardTitle:     "Card Title Placeholder",
+		ProjectNumber: "1",
+		ColumnName:    "Doing", // this may be extracted via enrichment logic
+		CardURL:       fmt.Sprintf("https://github.com/orgs/PMJ-Project/projects/1/views/1?pane=issue&itemId=%d", payload.ProjectsV2Item.ID),
+	}, nil
 }
